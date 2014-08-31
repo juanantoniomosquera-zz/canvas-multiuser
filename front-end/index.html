@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Canvas Multi usuario con Websockets</title>
+        <meta charset="UTF-8">
+        <style type="text/css">
+            #coordenadas{
+                display: inline;
+            }
+        </style>
+        <script src="jquery.js"></script>
+        <script src="http://ip_server:8080/socket.io/socket.io.js"></script>
+        <script>
+
+            $(document).ready(function() 
+            {
+
+                var socket = io.connect("http://ip_server:8080");
+                
+                // Almacenamos el canvas en una variable.
+                marco = $("#marco")[0];
+                coordenadas = $("#coordenadas");
+
+                // Preparamos el lienzo para dibujo 2D.
+                lienzo = marco.getContext("2d");
+
+                // Color Negro de pintura por defecto.
+                lienzo.strokeStyle = "black";
+                lienzo.lineJoin = "round";
+                lienzo.lineWidth = 3;
+                pintar = false;
+
+                // Borde del canvas.
+                borde = 1;
+                $("#marco").attr("style", "border:1px solid black");
+
+                // Evento alt+k
+                $('body').keyup(function(evento) 
+                    {
+                    // Cuando se pulse la tecla ALT y K
+                    if (evento.altKey && evento.keyCode == 75) // Alt + K
+                        {  
+                        lienzo.clearRect(0, 0, $("#marco").attr("width"), $("#marco").attr("height"));
+                        }
+                    });
+
+                // Evento click en bordes
+                $("#bordes").on("click", function() 
+                    {
+                    if(borde == 0)
+                        {
+                        socket.emit("canalborde",{"borde":"1"})
+                        }
+                    else
+                        {
+                        socket.emit("canalborde",{"borde":"0"})
+                        }
+                    });
+
+                // Datos que se reciben por canalborde
+                socket.on("canalborde", function(datosrecibidos) 
+                    {
+                    if(datosrecibidos.borde == 1)
+                        {
+                        $("#marco").attr("style", "border:1px solid black"); 
+                        } 
+                    else
+                        {
+                        $("#marco").attr("style", "");
+                        }
+                    });
+                    
+                // Evento click en colores
+                $(".colores").on("click",function()
+                    {
+                    socket.emit("canalcolores",{"color":$(this).attr("id")});
+                    });
+                
+                // Datos que se reciben por canalcolores
+                socket.on("canalcolores",function(datosrecibidos)
+                    {
+                    lienzo.strokeStyle = datosrecibidos.color;   
+                    });
+                    
+                // Evento click en fondocanvas
+                $('#fondocanvas').on("click",function() 
+                    {
+                    fondo = prompt("Introduzca el color de fondo para el canvas (en inglés):", "");
+                    
+                    socket.emit("canalfondo",{"fondo":fondo});
+                    });
+                    
+                // Datos que se reciben por canalfondo
+                socket.on("canalfondo",function(datosrecibidos)
+                    {
+                    if (datosrecibidos.fondo != "")
+                        {
+                        lienzo.rect(0, 0, $("#marco").attr("width"), $("#marco").attr("height"));
+                        lienzo.fillStyle = datosrecibidos.fondo;
+                        lienzo.fill();
+                        }
+                    else
+                        {
+                        $("#marco")[0].rect(0, 0, $("#marco").attr("width"),$("#marco").attr("height"));
+                        $("#marco")[0].fillStyle = 'white';
+                        $("#marco")[0].fill();
+                        }
+                    });
+                 
+                // Evento click en grosor
+                $(".grosor").on("click",function()
+                    {
+                    socket.emit("canalgrosor",{"grosor":$(this).attr("id")});    
+                    });
+                 
+                // Datos que se reciben por canalgrosor
+                socket.on("canalgrosor",function(datosrecibidos)
+                    {
+                    lienzo.lineWidth = datosrecibidos.grosor;
+                    });
+                    
+                // Evento click en limpiar
+                $('#limpiar').on("click",function()  
+                    {
+                    socket.emit("canallimpiar",{"limpiar":"1"});
+                    });
+                
+                // Datos que se reciben por canallimpiar
+                socket.on("canallimpiar",function(datosrecibidos)
+                    {
+                    if(datosrecibidos.limpiar == 1)
+                        {
+                        lienzo.clearRect(0, 0, $("#marco").attr("width"), $("#marco").attr("height"));
+                        }
+                    });
+                    
+                // Evento pulsar botón raton en marco
+                $("#marco").on('mousedown', function(evento) 
+                    {
+                    var mouseX = evento.pageX - this.offsetLeft;
+                    var mouseY = evento.pageY - this.offsetTop;
+                    
+                    socket.emit('canalmousedown',{"mouseX":mouseX,"mouseY":mouseY});
+                    });
+                
+                // Datos que se reciben por canalmousedown
+                socket.on('canalmousedown',function(datosrecibidos)
+                    {
+                    lienzo.beginPath();
+                    pintar = true;
+                    });
+                    
+                // Evento al levantar botón de ratón
+                $("#marco").on('mouseup', function() 
+                    {
+                    socket.emit('canalmouseup',{"pintar":false});
+                    });
+                
+                // Datos que se reciben por canalmouseup
+                socket.on('canalmouseup',function(datosrecibidos)
+                    {
+                    if(datosrecibidos.pintar == false)
+                        {
+                        pintar = false;
+                        }
+                    });
+                    
+                // Evento ratón sobre marco
+                $("#marco").on('mouseover', function() 
+                    {
+                    socket.emit('canalmouseover',{"cursor":pointer});
+                    });
+                
+                // Datos que se reciben por canalmouseover
+                socket.on('canalmouseover',function(datosrecibidos)
+                    {
+                    marco.style.cursor = datosrecibidos.cursor;
+                    });
+                    
+                // Evento ratón sale del marco
+                $("#marco").on('mouseout', function()
+                    {
+                    socket.emit("canalmouseout",{"pintar":false});
+                    });
+
+                // Datos que se reciben por canalmouseout
+                socket.on('canalmouseout',function(datosrecibidos)
+                    {
+                    if(datosrecibidos.pintar == false)
+                        {
+                        pintar = false;
+                        coordenadas.html("");
+                        }
+                    });
+
+                // Evento movimiento del ratón
+                $("#marco").on('mousemove', function(evento) 
+                    {
+                    if (pintar)
+                        {
+                        var mouseX = evento.pageX - this.offsetLeft;
+                        var mouseY = evento.pageY - this.offsetTop;
+                        
+                        socket.emit("canalmousemove",{"mouseX":mouseX,"mouseY":mouseY})
+                        } 
+                    });
+                
+                // Datos que se reciben por canalmousemove
+                socket.on('canalmousemove',function(datosrecibidos)
+                    {
+                    coordenadas.html("(" + datosrecibidos.mouseX + "," + datosrecibidos.mouseY + ")");
+                    lienzo.lineTo(datosrecibidos.mouseX,datosrecibidos.mouseY);
+                    lienzo.stroke();   
+                    });
+
+            });
+        </script>
+    </head>
+    <body>
+        <h1>Canvas multi-usuario en tiempo real (con websockets)</h1>
+        <h3>Tablero de dibujo MODO VISUALIZACIÓN MASTER.</h3>
+        <canvas id="marco" width="700" height="400"></canvas><br/>
+        <div id="notificaciones"></div>
+        <h4>Coordenadas ratón: <div id="coordenadas"></div></h4>
+        <input type="button" name="bordes" id="bordes" value="Desactivar/Activar bordes Tablero"/>
+        <input type="button" name="fondocanvas" id="fondocanvas" value="Color Fondo Canvas"/>
+        <input type="button" name="black" id="black"  value="Pincel Negro" class="colores"/>
+        <input type="button" name="blue" id="blue"  value="Pincel Azul" class="colores"/>
+        <input type="button" name="red" id="red"  value="Pincel Rojo" class="colores"/>
+        <input type="button" name="green" id="green"  value="Pincel Verde" class="colores"/>
+        <input type="button" name="green" id="yellow"  value="Pincel Amarillo" class="colores"/>
+        <h4>Selecciona ancho del pincel:</h4>
+        <input type="button" name="1" id="1"  value="Pequeño" class="grosor"/>
+        <input type="button" name="3" id="3"  value="Normal" class="grosor"/>
+        <input type="button" name="5" id="5"  value="Grande" class="grosor"/>
+        <input type="button" name="7" id="7"  value="Muy Grande" class="grosor"/>
+        <input type="button" name="limpiar" id="limpiar"  value="Limpiar Tablero Alt+K"/>
+    </body>
+</html> 
